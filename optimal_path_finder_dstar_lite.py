@@ -10,12 +10,22 @@ import rasterio
 from rasterio.transform import Affine
 
 # ==================== USER INPUT (No changes needed) ====================
-LBL_PATH = "/home/haesungkim/nasa-hecate/map/SLDEM2015_512_00N_30N_000_045_FLOAT.LBL"
+LBL_PATH = "/home/haesungkim/nasa-hecate/optimal-path/SLDEM2015_512_00N_30N_000_045_FLOAT.LBL"
 
 # A) Specify lon/lat (deg) or B) pixel row/col
 # (Set START_ROW_COL/GOAL_ROW_COL to None to use lon/lat)
-START_LON_LAT = (23.46991, 0.66413)  # 아폴로 11 (경도, 위도)
-GOAL_LON_LAT  = (3.56152, 25.97552)   # 아폴로 15 (경도, 위도)
+
+# # 아폴로 11 -> 아폴로 15
+# START_LON_LAT = (23.46991, 0.66413)  # 아폴로 11 (경도, 위도)
+# GOAL_LON_LAT  = (3.56152, 25.97552)   # 아폴로 15 (경도, 위도)
+
+# # 아폴로 15 -> 아폴로 17
+# START_LON_LAT = (3.56152, 25.97552)   # 아폴로 15 (경도, 위도)
+# GOAL_LON_LAT  = (30.462, 20.029)      # 아폴로 17 (경도, 위도)
+
+# 아폴로 11 -> 아폴로 17
+START_LON_LAT  = (23.46991, 0.66413)  # 아폴로 11 (경도, 위도)
+GOAL_LON_LAT = (30.462, 20.029)      # 아폴로 17 (경도, 위도)
 
 # 픽셀 모드는 사용하지 않음
 START_ROW_COL = None
@@ -23,8 +33,8 @@ GOAL_ROW_COL  = None
 
 
 # Slope -> speed model
-V0 = 1.0          # 평지에서의 최고 속도 (m/s). 모든 속도 계산의 기준이 됩니다.
-K  = 0.2         # 경사 저항 계수. 값이 클수록 경사에 따라 속도가 더 빠르게 감소합니다.
+V0 = 1.0        # 평지에서의 최고 속도 (m/s). 모든 속도 계산의 기준이 됩니다.
+K  = 0.2        # 경사 저항 계수. 값이 클수록 경사에 따라 속도가 더 빠르게 감소합니다.
 V_FLOOR = 0.10    # 최저 보장 속도 (m/s). 로버의 속도가 이 값 밑으로 떨어지지 않도록 보장합니다.
 SLOPE_BLOCK_DEG = 35.0  # 통행 불가능 경사 (도). 설정된 각도보다 가파른 지형은 이동 불가능한 벽으로 간주됩니다.
 
@@ -35,14 +45,22 @@ DOWNHILL_GAIN_SLOPE = 0.2   # 내리막 주행 보너스 계수. 내리막을 �
 DOWNHILL_GAIN_MAX = 0.10    # 내리막 최대 보너스 한계. 내리막에서 얻을 수 있는 최대 속도 증가율(%)을 제한합니다.
 
 # Outputs
-OUT_PREFIX = "sldem_astar_path_optimized" # Changed prefix to reflect optimization
+OUT_PREFIX = "sldem_astar_path_optimized"
 SAVE_PNG = True
+
+# START: 출력 디렉토리 설정
+# 스크립트 파일의 위치를 기준으로 'outputs' 라는 하위 폴더 경로를 생성합니다.
+OUTPUT_DIR = Path(__file__).parent / "outputs"
+# 만약 'outputs' 폴더가 없다면 생성합니다 (exist_ok=True는 폴더가 이미 있어도 에러를 발생시키지 않습니다).
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+# 출력 디렉토리 설정
 
 # Progress logging
 VERBOSE = True
 LOG_EVERY_ITERS = 50_000
 LOG_EVERY_SECS  = 5.0
-STATUS_JSON = f"{OUT_PREFIX}.status.json"
+# 상태 파일 경로도 새로운 출력 디렉토리를 사용하도록 변경합니다.
+STATUS_JSON = OUTPUT_DIR / f"{OUT_PREFIX}.status.json"
 # ====================================================
 
 
@@ -71,7 +89,7 @@ def xy_to_lonlat(x, y, lon0_deg=180.0):
 
 def lonlat_to_xy(lon_deg, lat_deg, lon0_deg=180.0):
     x = ((lon_deg - lon0_deg) * math.pi / 180.0) * MOON_R_M
-    y = ( lat_deg            * math.pi / 180.0) * MOON_R_M
+    y = ( lat_deg              * math.pi / 180.0) * MOON_R_M
     return x, y
 
 def xy_to_rowcol(transform: Affine, x, y, height, width):
@@ -101,7 +119,7 @@ height_m[nan_mask] = np.nan
 
 print(f"[INFO] DEM shape: {H} x {W}, pixel ~{pixel_m:.3f} m")
 write_status("read_dem_done", H=H, W=W, pixel_m=round(pixel_m,3),
-             elapsed_s=round(time.time()-t_read0,1))
+                 elapsed_s=round(time.time()-t_read0,1))
 
 print("[INFO] Computing slope...")
 t_slope0 = time.time()
@@ -135,7 +153,6 @@ write_status("start_goal", start_row=sr, start_col=sc, goal_row=gr, goal_col=gc)
 
 
 # ==================== A* ALGORITHM START ====================
-# This section replaces the D* Lite implementation.
 INF = float('inf')
 
 start = (sr, sc)
@@ -147,7 +164,6 @@ def heuristic(a, b):
     dist_m = pixel_m * math.hypot(dr, dc)
     return dist_m / V0 # Use V0 for an admissible heuristic (never overestimates)
 
-# Neighbors: dr, dc, distance_multiplier
 NEI = [(-1,0), (1,0), (0,-1), (0,1),
        (-1,-1), (-1,1), (1,-1), (1,1)]
 
@@ -161,14 +177,13 @@ def edge_time(u, v):
     
     dm = pixel_m * (math.sqrt(2) if (ur!=vr and uc!=vc) else 1.0)
     
-    # Use average velocity of the two cells as base speed
     v_mean = 0.5 * (float(vel[ur,uc]) + float(vel[vr,vc]))
 
     if not DIRECTIONAL_SPEED:
         v_final = v_mean
     else:
         dz = float(height_m[vr,vc] - height_m[ur,uc]) # Elevation change
-        grade = dz / dm                               # rise/run
+        grade = dz / dm
         
         v_final = v_mean
         if grade > 0:  # Uphill
@@ -179,14 +194,13 @@ def edge_time(u, v):
     v_final = max(v_final, V_FLOOR)
     return dm / v_final
 
-
 def find_path_astar():
     open_set = [] # Priority queue: (f_score, node)
     heapq.heappush(open_set, (heuristic(start, goal), start))
     
-    came_from = {} # To reconstruct path
+    came_from_row = np.full((H, W), -1, dtype=np.int32)
+    came_from_col = np.full((H, W), -1, dtype=np.int32)
     
-    # MODIFICATION: Use a NumPy array for g_score instead of a dictionary for performance.
     g_score = np.full((H, W), np.inf, dtype=np.float64)
     g_score[start] = 0.0
     
@@ -198,15 +212,13 @@ def find_path_astar():
 
     while open_set:
         iters += 1
-        
         current_f, current = heapq.heappop(open_set)
 
         if current == goal:
             print(f"[A*] Goal reached after {iters:,} iterations.")
             write_status("astar_done", total_iters=iters, elapsed_s=round(time.time()-t0,1))
-            return came_from, g_score[goal]
+            return (came_from_row, came_from_col), g_score[goal]
 
-        # MODIFICATION: Stale entry check now uses the g_score NumPy array.
         if current_f > g_score[current] + heuristic(current, goal):
              continue
 
@@ -220,12 +232,11 @@ def find_path_astar():
             if cost == INF:
                 continue
 
-            # MODIFICATION: Access g_score using NumPy indexing.
             tentative_g_score = g_score[current] + cost
             
-            # MODIFICATION: Access g_score using NumPy indexing.
             if tentative_g_score < g_score[neighbor]:
-                came_from[neighbor] = current
+                came_from_row[neighbor] = current[0]
+                came_from_col[neighbor] = current[1]
                 g_score[neighbor] = tentative_g_score
                 f_score = tentative_g_score + heuristic(neighbor, goal)
                 heapq.heappush(open_set, (f_score, neighbor))
@@ -240,7 +251,7 @@ def find_path_astar():
                       f"best_f={best_f if best_f < INF else 'inf':.1f} "
                       f"elapsed={elapsed:.1f}s")
                 write_status("astar_running",
-                             iters=iters, open=len(open_set), closed=len(came_from),
+                             iters=iters, open=len(open_set),
                              best_f_score=(None if best_f==INF else round(best_f,1)),
                              elapsed_s=round(elapsed,1))
                 last_log = now
@@ -252,38 +263,42 @@ def find_path_astar():
 
 
 print("[INFO] Running A* ...")
-came_from, total_time = find_path_astar()
+# Corrected variable name from 'came_from' to 'came_from_arrays'
+came_from_arrays, total_time = find_path_astar()
 
 
-# ---------- Reconstruct path (A* version) - No changes needed ----------
-if came_from is None:
+# ---------- Reconstruct path (A* version) - MODIFIED FOR NUMPY ----------
+if came_from_arrays is None:
     raise RuntimeError("No path found (start not connected to goal).")
 
+came_from_row, came_from_col = came_from_arrays
 path = []
 cur = goal
 t_rec0 = time.time()
-# Path reconstruction requires a check for the start node itself,
-# as it won't be in the `came_from` dictionary.
+
 while cur != start:
     path.append(cur)
-    if cur not in came_from:
-        # This can happen if the goal is unreachable but the loop terminated somehow.
-        # Or if start and goal are the same.
+    r, c = cur
+    
+    pr = came_from_row[r, c]
+    pc = came_from_col[r, c]
+
+    if pr == -1: 
         print(f"[WARN] Path reconstruction ended prematurely at {cur}.")
-        path = [] # Indicate failure
+        path = [] # 실패 표시
         break
-    cur = came_from[cur]
-if path: # Only add start if a path was found
+    
+    cur = (pr, pc)
+
+if path:
     path.append(start)
     path.reverse()
 
 if not path:
      raise RuntimeError("Path reconstruction failed.")
 
-
 write_status("reconstruct_done", steps=len(path), elapsed_s=round(time.time()-t_rec0,1))
 print(f"[INFO] Path length (pixels): {len(path)}")
-
 
 # ---------- Per-step stats & save (No changes needed) ----------
 def step_dist_m(a,b):
@@ -313,7 +328,8 @@ for i, rc in enumerate(path):
     rows.append([i, r, c, lon, lat, elev, slope, seg_d, cum_d, seg_t, cum_t])
 
 # ---------- Save CSV ----------
-csv_path = f"{OUT_PREFIX}.csv"
+# csv 파일 경로를 OUTPUT_DIR 아래로 지정
+csv_path = OUTPUT_DIR / f"{OUT_PREFIX}.csv"
 with open(csv_path, "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["idx","row","col","lon_deg","lat_deg","elev_m","slope_deg",
@@ -333,7 +349,8 @@ geojson = {
      }}
   ]
 }
-geojson_path = f"{OUT_PREFIX}.geojson"
+# geojson 파일 경로를 OUTPUT_DIR 아래로 지정
+geojson_path = OUTPUT_DIR / f"{OUT_PREFIX}.geojson"
 Path(geojson_path).write_text(json.dumps(geojson, indent=2))
 print(f"[OUT] GeoJSON -> {geojson_path}")
 
@@ -348,14 +365,15 @@ if SAVE_PNG:
         img_rgb = img.convert("RGB")
         drw = ImageDraw.Draw(img_rgb)
         pts = [ (p[1], p[0]) for p in path ] # (x=col, y=row)
-        drw.line(pts, fill=(255,0,0), width=30) # Made line thicker
-        png_path = f"{OUT_PREFIX}.png"
+        drw.line(pts, fill=(255,0,0), width=30)
+        # png 파일 경로를 OUTPUT_DIR 아래로 지정
+        png_path = OUTPUT_DIR / f"{OUT_PREFIX}.png"
         img_rgb.save(png_path)
         print(f"[OUT] PNG   -> {png_path}")
     except Exception as e:
         print("[WARN] PNG overlay failed:", e)
 
-write_status("outputs_done", csv=csv_path, geojson=geojson_path,
-             png=(png_path if SAVE_PNG else None))
+write_status("outputs_done", csv=str(csv_path), geojson=str(geojson_path),
+               png=(str(png_path) if SAVE_PNG and 'png_path' in locals() else None))
 print(f"[INFO] Total time (s): {cum_t:.1f}, distance (m): {cum_d:.1f}")
 print(f"[INFO] A* found total time (s): {total_time:.1f}")
