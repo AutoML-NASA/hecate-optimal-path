@@ -1,0 +1,7 @@
+{
+  "stage": "outputs_done",
+  "time_s": 1759633927.278,
+  "csv": "/home/haesungkim/nasa-hecate/optimal-path/outputs/sldem_astar_path_optimized.csv",
+  "geojson": "/home/haesungkim/nasa-hecate/optimal-path/outputs/sldem_astar_path_optimized.geojson",
+  "png": "/home/haesungkim/nasa-hecate/optimal-path/outputs/sldem_astar_path_optimized.png"
+}
