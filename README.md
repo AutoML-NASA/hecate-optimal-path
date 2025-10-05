@@ -1,5 +1,7 @@
 # hecate-optimal-path
 
+> This algorithm implementation is for [nasa-hecate](https://github.com/AutoML-NASA/nasa-hecate) projects
+
 <img width="3252" height="2184" alt="그림2" src="https://github.com/user-attachments/assets/6659b139-6b28-411c-ae88-35b63f8d0855" />
 
 This repository implements the pathfinding algorithms used in the nasa-hecate project, a game where users find optimal routes on the Moon.
