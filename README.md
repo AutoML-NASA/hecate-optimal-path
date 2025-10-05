@@ -18,7 +18,6 @@ For this reason, we chose to implement the **A\* algorithm** to find the optimal
 | :------------------ | :------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ |
 | **Core Concept** | **Optimal pathfinding in a static environment.** | **Fast replanning in a dynamic environment.** |
 | **Primary Use Case**| Environments with unchanging maps (e.g., games, initial route calculation in GPS).                       | Environments where map info changes in real-time (e.g., robotics, autonomous drones).                   |
-| **Search Direction**| **Start → Goal** | **Goal → Start** |
 | **Pros** | - Guarantees the shortest path in a static environment.<br>- Relatively simple and intuitive to implement. | - Avoids full recalculation when the path is blocked.<br>- Efficiently updates only affected path segments. |
 | **Cons** | - Inefficient in dynamic settings; requires a full path recalculation if an obstacle appears.             | - More complex to implement than A\*.<br>- Can be less efficient than A\* in a purely static environment.   |
 
